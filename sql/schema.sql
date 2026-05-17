@@ -237,7 +237,8 @@ CREATE TABLE transacao (
     valor              NUMERIC(10,2)         NOT NULL CHECK (valor > 0),
     installments       INT                   NOT NULL DEFAULT 1 CHECK (installments >= 1),
     status             enum_status_transacao NOT NULL DEFAULT 'PENDENTE',
-    created_at         TIMESTAMP             NOT NULL DEFAULT CURRENT_TIMESTAMP
+    created_at         TIMESTAMP             NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    motivo_recusa      enum_motivo_recusa
 );
 
 -- ============================================================
