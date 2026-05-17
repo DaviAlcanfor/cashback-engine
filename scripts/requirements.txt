@@ -1,0 +1,11 @@
+colorama==0.4.6
+Faker==40.18.0
+loguru==0.7.3
+markdown-it-py==4.2.0
+mdurl==0.1.2
+psycopg2-binary==2.9.12
+Pygments==2.20.0
+python-dotenv==1.2.2
+rich==15.0.0
+tzdata==2026.2
+win32_setctime==1.2.0

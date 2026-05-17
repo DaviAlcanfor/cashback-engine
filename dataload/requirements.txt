@@ -1,4 +1,0 @@
-psycopg2-binary
-faker
-loguru
-python-dotenv
