@@ -63,82 +63,43 @@ DECLARE
     v_status_cartao     enum_status_cartao;
     v_status_cliente    enum_status_cliente;
     v_limite_disponivel NUMERIC(10,2);
-    v_validade          DATE;
 BEGIN
 
     SELECT
         c.status,
         cl.status,
-        (c.limite_valor - c.limite_usado),
-        c.validade
+        (c.limite_valor - c.limite_usado)
     INTO
         v_status_cartao,
         v_status_cliente,
-        v_limite_disponivel,
-        v_validade
+        v_limite_disponivel
     FROM cartao c
-    JOIN cliente cl
-        ON cl.client_id = c.client_id
+    JOIN cliente cl ON cl.client_id = c.client_id
     WHERE c.card_id = p_card_id;
 
-    -- cartão inexistente
     IF NOT FOUND THEN
-
-        RETURN QUERY
-        SELECT
-            FALSE,
-            'CARTAO_NAO_ENCONTRADO'::enum_motivo_recusa;
+        RETURN QUERY SELECT FALSE, 'CARTAO_NAO_ENCONTRADO'::enum_motivo_recusa;
         RETURN;
     END IF;
 
-    -- cartão inválido
     IF v_status_cartao <> 'ATIVO' THEN
-
-        RETURN QUERY
-        SELECT
-            FALSE,
-            'CARTAO_BLOQUEADO_OU_CANCELADO'::enum_motivo_recusa;
+        RETURN QUERY SELECT FALSE, 'CARTAO_BLOQUEADO_OU_CANCELADO'::enum_motivo_recusa;
         RETURN;
     END IF;
 
-    -- cliente inválido
     IF v_status_cliente <> 'ATIVO' THEN
-
-        RETURN QUERY
-        SELECT
-            FALSE,
-            'CLIENTE_INATIVO_OU_BLOQUEADO'::enum_motivo_recusa;
+        RETURN QUERY SELECT FALSE, 'CLIENTE_INATIVO_OU_BLOQUEADO'::enum_motivo_recusa;
         RETURN;
     END IF;
 
-    -- validade
-    IF v_validade < CURRENT_DATE THEN
-
-        RETURN QUERY
-        SELECT
-            FALSE,
-            'CARTAO_EXPIRADO'::enum_motivo_recusa;
-
-        RETURN;
-    END IF;
-
-    -- limite
     IF p_valor > v_limite_disponivel THEN
-
-        RETURN QUERY
-        SELECT
-            FALSE,
-            'LIMITE_INSUFICIENTE'::enum_motivo_recusa;
+        RETURN QUERY SELECT FALSE, 'LIMITE_INSUFICIENTE'::enum_motivo_recusa;
         RETURN;
     END IF;
 
-    RETURN QUERY
-    SELECT
-        TRUE,
-        NULL::enum_motivo_recusa;
+    RETURN QUERY SELECT TRUE, NULL::enum_motivo_recusa;
 END;
 $$;
-	
 
 
 CREATE OR REPLACE FUNCTION fn_buscar_campanha(
