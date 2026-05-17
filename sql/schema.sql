@@ -32,6 +32,7 @@ DROP TYPE IF EXISTS enum_tamanho          CASCADE;
 DROP TYPE IF EXISTS enum_variante         CASCADE;
 DROP TYPE IF EXISTS enum_status_cliente   CASCADE;
 DROP TYPE IF EXISTS enum_profile          CASCADE;
+DROP TYPE IF EXISTS enum_motivo_recusa    CASCADE;
 
 -- ============================================================
 -- ENUMS
@@ -48,6 +49,7 @@ CREATE TYPE enum_status_transacao AS ENUM ('PENDENTE', 'APROVADA', 'RECUSADA', '
 CREATE TYPE enum_status_campanha  AS ENUM ('ATIVA', 'ENCERRADA');
 CREATE TYPE enum_status_cashback  AS ENUM ('PENDENTE', 'LIBERADO', 'EXPIRADO');
 CREATE TYPE enum_operacao_log     AS ENUM ('INSERT', 'UPDATE', 'DELETE');
+CREATE TYPE enum_motivo_recusa    AS ENUM ('LIMITE_INSUFICIENTE','CARTAO_EXPIRADO','CLIENTE_BLOQUEADO','CARTAO_CANCELADO');
 
 -- ============================================================
 -- ENDERECO
