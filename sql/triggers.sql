@@ -1,4 +1,27 @@
 -- ============================================================
+-- DROP TRIGGERS
+-- ============================================================
+
+DROP TRIGGER IF EXISTS trg_validar_transacao       ON transacao;
+DROP TRIGGER IF EXISTS trg_processar_transacao     ON transacao;
+DROP TRIGGER IF EXISTS trg_liberar_cashback        ON transacao;
+DROP TRIGGER IF EXISTS trg_log_transacao           ON transacao;
+DROP TRIGGER IF EXISTS trg_log_cashback            ON cashback;
+DROP TRIGGER IF EXISTS trg_log_global_transacao    ON transacao;
+DROP TRIGGER IF EXISTS trg_log_global_cashback     ON cashback;
+
+-- ============================================================
+-- DROP TRIGGER FUNCTIONS
+-- ============================================================
+
+DROP FUNCTION IF EXISTS tr_validar_transacao() CASCADE;
+DROP FUNCTION IF EXISTS tr_processar_transacao() CASCADE;
+DROP FUNCTION IF EXISTS tr_liberar_cashback() CASCADE;
+DROP FUNCTION IF EXISTS tr_log_transacao() CASCADE;
+DROP FUNCTION IF EXISTS tr_log_cashback() CASCADE;
+DROP FUNCTION IF EXISTS tr_log_global() CASCADE;
+
+-- ============================================================
 -- TRIGGER VALIDAR TRANSAÇÃO
 -- ============================================================
 
@@ -6,16 +29,36 @@ CREATE OR REPLACE FUNCTION tr_validar_transacao()
 RETURNS TRIGGER
 LANGUAGE plpgsql
 AS $$
+DECLARE
+    v_valido BOOLEAN;
+    v_motivo enum_motivo_recusa;
 BEGIN
-    -- força status baseado na validação
-    IF fn_validar_cartao(NEW.card_id, NEW.valor) THEN
+
+    SELECT
+        valido,
+        motivo
+    INTO
+        v_valido,
+        v_motivo
+    FROM fn_validar_cartao(
+        NEW.card_id,
+        NEW.valor
+    );
+
+    -- aprovada
+    IF v_valido THEN
         NEW.status := 'APROVADA';
     ELSE
         NEW.status := 'RECUSADA';
+
+        -- log no terminal postgres
+        RAISE NOTICE
+            'TRANSACAO RECUSADA | CARD_ID: % | MOTIVO: %',
+            NEW.card_id,
+            v_motivo;
     END IF;
 
     RETURN NEW;
-
 END;
 $$;
 
@@ -59,22 +102,22 @@ BEGIN
         NEW.valor
     );
 
-    -- atualiza campanha da transação
+    -- atualiza campanha
     UPDATE transacao
     SET campanha_id = v_campanha_id
     WHERE transacao_id = NEW.transacao_id;
 
-    -- atualiza valores do cartão
+    -- atualiza cartão
     UPDATE cartao
     SET
         limite_usado = limite_usado + NEW.valor,
         valor_fatura = valor_fatura + NEW.valor
     WHERE card_id = NEW.card_id;
 
-    -- cria cashback somente se houver valor
+    -- cria cashback
     IF v_cashback_valor > 0 THEN
-        INSERT INTO cashback (transacao_id, valor, pct_aplicada, status)
-        VALUES (NEW.transacao_id, v_cashback_valor, v_cashback_pct,'PENDENTE');
+        INSERT INTO cashback (transacao_id,valor,pct_aplicada, status)
+        VALUES ( NEW.transacao_id, v_cashback_valor,  v_cashback_pct,  'PENDENTE');
     END IF;
 
     RETURN NEW;
@@ -97,9 +140,8 @@ LANGUAGE plpgsql
 AS $$
 BEGIN
 
-    -- libera cashback quando transação aprova
-    IF OLD.status <> 'APROVADA' AND 
-	   NEW.status = 'APROVADA'
+    IF OLD.status <> 'APROVADA'
+       AND NEW.status = 'APROVADA'
     THEN
         UPDATE cashback
         SET status = 'LIBERADO',
@@ -128,8 +170,8 @@ LANGUAGE plpgsql
 AS $$
 BEGIN
 
-    INSERT INTO log_transacao (transacao_id,status_antes,status_depois)
-    VALUES ( NEW.transacao_id, OLD.status, NEW.status  );
+    INSERT INTO log_transacao (transacao_id, status_antes, status_depois)
+	VALUES (NEW.transacao_id, OLD.status,NEW.status);
 
     RETURN NEW;
 END;
@@ -152,8 +194,8 @@ LANGUAGE plpgsql
 AS $$
 BEGIN
 
-    INSERT INTO log_cashback (cashback_id, status_antes, status_depois )
-    VALUES ( NEW.cashback_id, OLD.status, NEW.status );
+    INSERT INTO log_cashback (cashback_id, status_antes, status_depois)
+    VALUES ( NEW.cashback_id,  OLD.status, NEW.status);
 
     RETURN NEW;
 END;
@@ -179,8 +221,8 @@ BEGIN
     -- INSERT
     IF TG_OP = 'INSERT' THEN
 
-        INSERT INTO log_global ( tabela, operacao,  dado_novo )
-        VALUES (TG_TABLE_NAME,  'INSERT', to_jsonb(NEW));
+        INSERT INTO log_global ( tabela,operacao,dado_novo)
+        VALUES ( TG_TABLE_NAME,'INSERT',to_jsonb(NEW));
 
         RETURN NEW;
     END IF;
@@ -188,18 +230,17 @@ BEGIN
     -- UPDATE
     IF TG_OP = 'UPDATE' THEN
 
-        INSERT INTO log_global (tabela, operacao, dado_antigo, dado_novo)
-        VALUES (TG_TABLE_NAME, 'UPDATE', to_jsonb(OLD), to_jsonb(NEW));
+        INSERT INTO log_global (tabela, operacao,dado_antigo, dado_novo)
+        VALUES ( TG_TABLE_NAME,'UPDATE', to_jsonb(OLD),to_jsonb(NEW));
 
         RETURN NEW;
-
     END IF;
 
     -- DELETE
     IF TG_OP = 'DELETE' THEN
 
-        INSERT INTO log_global (tabela,  operacao,  dado_antigo)
-        VALUES (TG_TABLE_NAME,'DELETE', to_jsonb(OLD) );
+        INSERT INTO log_global (tabela,operacao, dado_antigo)
+        VALUES (TG_TABLE_NAME, 'DELETE', to_jsonb(OLD));
 
         RETURN OLD;
     END IF;
