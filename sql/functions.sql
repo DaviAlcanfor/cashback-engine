@@ -135,55 +135,47 @@ CREATE OR REPLACE FUNCTION fn_calcular_cashback(
 )
 RETURNS TABLE (
     cashback_valor NUMERIC,
-    cashback_pct NUMERIC,
-    campanha_id INT
+    cashback_pct   NUMERIC,
+    campanha_id    INT
 )
 LANGUAGE plpgsql
 AS $$
 DECLARE
-    v_mcc_id INT;
+    v_mcc_id       INT;
     v_variante_pct NUMERIC(5,2);
     v_campanha_pct NUMERIC(5,2);
-    v_pct_final NUMERIC(5,2);
-    v_campanha_id INT;
+    v_pct_final    NUMERIC(5,2);
+    v_campanha_id  INT;
 BEGIN
 
-    -- busca MCC do estabelecimento
     SELECT e.mcc_id
     INTO v_mcc_id
     FROM estabelecimento e
     WHERE e.estabelecimento_id = p_estabelecimento_id;
 
-    -- busca cashback base da variante
     SELECT v.cashback_pct
     INTO v_variante_pct
     FROM cartao c
-    JOIN variante v
-        ON v.variante_id = c.variante_id
+    JOIN variante v ON v.variante_id = c.variante_id
     WHERE c.card_id = p_card_id;
 
-    -- busca campanha
     v_campanha_id := fn_buscar_campanha(v_mcc_id, CURRENT_TIMESTAMP);
 
-    -- cashback campanha
     IF v_campanha_id IS NOT NULL THEN
-
-        SELECT cashback_pct
+        SELECT cc.cashback_pct
         INTO v_campanha_pct
-        FROM campanha_cashback
-        WHERE campanha_id = v_campanha_id;
-
+        FROM campanha_cashback cc
+        WHERE cc.campanha_id = v_campanha_id;
     ELSE
         v_campanha_pct := 0;
     END IF;
 
-    -- regra final
     v_pct_final := v_variante_pct + v_campanha_pct;
 
     RETURN QUERY
     SELECT
         ROUND((p_valor * v_pct_final / 100), 2),
-        v_pct_final,
+        v_pct_final::NUMERIC,
         v_campanha_id;
 
 END;
