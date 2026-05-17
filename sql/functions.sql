@@ -1,3 +1,7 @@
+DROP FUNCTION IF EXISTS fn_buscar_pct_vigente(INT, INT, TIMESTAMP) CASCADE;
+DROP FUNCTION IF EXISTS fn_validar_cartao(INT, NUMERIC) CASCADE;
+DROP FUNCTION IF EXISTS fn_buscar_campanha(INT, TIMESTAMP) CASCADE;
+DROP FUNCTION IF EXISTS fn_calcular_cashback(INT, INT, NUMERIC) CASCADE;
 
 
 CREATE OR REPLACE FUNCTION fn_buscar_pct_vigente(
@@ -45,19 +49,21 @@ END;
 $$;
 
 
-
 CREATE OR REPLACE FUNCTION fn_validar_cartao(
     p_card_id INT,
     p_valor NUMERIC
 )
-RETURNS BOOLEAN
+RETURNS TABLE (
+    valido BOOLEAN,
+    motivo enum_motivo_recusa
+)
 LANGUAGE plpgsql
 AS $$
 DECLARE
-    v_status_cartao enum_status_cartao;
-    v_status_cliente enum_status_cliente;
+    v_status_cartao     enum_status_cartao;
+    v_status_cliente    enum_status_cliente;
     v_limite_disponivel NUMERIC(10,2);
-    v_validade DATE;
+    v_validade          DATE;
 BEGIN
 
     SELECT
@@ -75,32 +81,61 @@ BEGIN
         ON cl.client_id = c.client_id
     WHERE c.card_id = p_card_id;
 
+    -- cartão inexistente
     IF NOT FOUND THEN
-        RETURN FALSE;
+
+        RETURN QUERY
+        SELECT
+            FALSE,
+            'CARTAO_NAO_ENCONTRADO'::enum_motivo_recusa;
+        RETURN;
     END IF;
 
-    -- cartão bloqueado/cancelado
+    -- cartão inválido
     IF v_status_cartao <> 'ATIVO' THEN
-        RETURN FALSE;
+
+        RETURN QUERY
+        SELECT
+            FALSE,
+            'CARTAO_BLOQUEADO_OU_CANCELADO'::enum_motivo_recusa;
+        RETURN;
     END IF;
 
     -- cliente inválido
     IF v_status_cliente <> 'ATIVO' THEN
-        RETURN FALSE;
+
+        RETURN QUERY
+        SELECT
+            FALSE,
+            'CLIENTE_INATIVO_OU_BLOQUEADO'::enum_motivo_recusa;
+        RETURN;
     END IF;
 
     -- validade
     IF v_validade < CURRENT_DATE THEN
-        RETURN FALSE;
+
+        RETURN QUERY
+        SELECT
+            FALSE,
+            'CARTAO_EXPIRADO'::enum_motivo_recusa;
+
+        RETURN;
     END IF;
 
-    -- limite disponível
+    -- limite
     IF p_valor > v_limite_disponivel THEN
-        RETURN FALSE;
+
+        RETURN QUERY
+        SELECT
+            FALSE,
+            'LIMITE_INSUFICIENTE'::enum_motivo_recusa;
+        RETURN;
     END IF;
 
-    RETURN TRUE;
-
+    RETURN QUERY
+    SELECT
+        TRUE,
+        NULL::enum_motivo_recusa;
 END;
 $$;
 	
