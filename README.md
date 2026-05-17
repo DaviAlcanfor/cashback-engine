@@ -113,8 +113,9 @@ O modelo é composto por 16 tabelas normalizadas organizadas em camadas:
 - `trg_log_transacao` / `trg_log_cashback` — auditoria específica de mudanças de status
 - `trg_log_global_transacao` / `trg_log_global_cashback` — audit trail completo em JSONB usando `TG_OP`, `OLD`, `NEW` e `CURRENT_USER`
 
-**Procedure**
+**Procedures**
 - `pr_registrar_transacao` — ponto de entrada do sistema; dispara toda a cadeia de triggers
+- `pr_expirar_cashbacks` — expira automaticamente cashbacks pendentes de contas inativas por mais de 1 ano
 
 **View**
 - `vw_painel_cliente` — extrato completo por cartão com limite disponível, valor de fatura e cashback separado por status
@@ -159,6 +160,7 @@ cashback-engine/
         requirements.txt
     scripts/
         simulador.py
+    script.sql
     .env.example
     Makefile
     README.md
@@ -185,6 +187,7 @@ make reseed    # limpa e repopula os dados
 make schema    # recria só a estrutura
 make seed      # popula sem recriar a estrutura
 make simulate  # inicia o simulador de transações
+make script    # executa o script.sql consolidado no banco
 ```
 
 ## Configuração
