@@ -92,7 +92,7 @@ CREATE TABLE cliente (
     data_nascimento DATE                NOT NULL,
     age_group TEXT GENERATED ALWAYS AS (fn_age_group(data_nascimento)) STORED,
     profile         enum_profile        NOT NULL,
-    renda_mensal    NUMERIC(10,2)       NOT NULL,
+    renda_mensal    NUMERIC(10,2)       NOT NULL CHECK (renda_mensal >= 0),
     status          enum_status_cliente NOT NULL DEFAULT 'ATIVO',
     endereco_id     INT                 NOT NULL REFERENCES endereco(endereco_id),
     created_at      TIMESTAMP           NOT NULL DEFAULT CURRENT_TIMESTAMP
@@ -104,7 +104,7 @@ CREATE TABLE cliente (
 CREATE TABLE variante (
     variante_id  SERIAL        PRIMARY KEY,
     nome         enum_variante NOT NULL UNIQUE,
-    cashback_pct NUMERIC(5,2)  NOT NULL,
+    cashback_pct NUMERIC(5,2)  NOT NULL CHECK (cashback_pct >= 0),
     descricao    TEXT
 );
 
@@ -115,7 +115,7 @@ CREATE TABLE limite_tipo (
     limite_tipo_id SERIAL        PRIMARY KEY,
     codigo         VARCHAR(5)    NOT NULL UNIQUE,
     descricao      VARCHAR(100)  NOT NULL,
-    valor_teto     NUMERIC(10,2) NOT NULL
+    valor_teto     NUMERIC(10,2) NOT NULL CHECK (valor_teto > 0)
 );
 
 -- ============================================================
@@ -132,7 +132,7 @@ CREATE TABLE bandeira (
 -- ============================================================
 CREATE TABLE bin (
     bin_id      SERIAL       PRIMARY KEY,
-    codigo      VARCHAR(6)   NOT NULL UNIQUE,
+    codigo      VARCHAR(6)   NOT NULL UNIQUE CHECK (codigo ~ '^[0-9]{6}$'),
     bandeira_id INT          NOT NULL REFERENCES bandeira(bandeira_id),
     banco       VARCHAR(100) NOT NULL,
     created_at  TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP
@@ -147,11 +147,12 @@ CREATE TABLE cartao (
     bin_id         INT                NOT NULL REFERENCES bin(bin_id),
     variante_id    INT                NOT NULL REFERENCES variante(variante_id),
     limite_tipo_id INT                NOT NULL REFERENCES limite_tipo(limite_tipo_id),
-    limite_valor   NUMERIC(10,2)      NOT NULL,
-    limite_usado   NUMERIC(10,2)      NOT NULL DEFAULT 0,
-    valor_fatura   NUMERIC(10,2)      NOT NULL DEFAULT 0,
+    limite_valor   NUMERIC(10,2)      NOT NULL CHECK (limite_valor > 0),
+    limite_usado   NUMERIC(10,2)      NOT NULL DEFAULT 0 CHECK (limite_usado >= 0),
+    valor_fatura   NUMERIC(10,2)      NOT NULL DEFAULT 0 CHECK (valor_fatura >= 0),
     fatura_paga    BOOLEAN            NOT NULL DEFAULT FALSE,
-    last4          VARCHAR(4)         NOT NULL,
+    validade       DATE               NOT NULL,
+    last4          VARCHAR(4)         NOT NULL CHECK (last4 ~ '^[0-9]{4}$'),
     status         enum_status_cartao NOT NULL DEFAULT 'ATIVO',
     created_at     TIMESTAMP          NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
@@ -160,29 +161,29 @@ CREATE TABLE cartao (
 -- MCC
 -- ============================================================
 CREATE OR REPLACE FUNCTION fn_mcc_categoria(codigo VARCHAR)
-RETURNS TEXT
+RETURNS enum_estabelecimento
 IMMUTABLE
 LANGUAGE SQL
 AS $$
     SELECT CASE
-        WHEN codigo::INT BETWEEN 0    AND 1499 THEN 'AGRICOLA'
-        WHEN codigo::INT BETWEEN 1500 AND 2999 THEN 'CONSTRUCAO'
-        WHEN codigo::INT BETWEEN 3000 AND 3999 THEN 'VIAGEM'
-        WHEN codigo::INT BETWEEN 4000 AND 4799 THEN 'TRANSPORTE'
-        WHEN codigo::INT BETWEEN 4800 AND 4999 THEN 'UTILIDADE'
-        WHEN codigo::INT BETWEEN 5000 AND 5699 THEN 'COMERCIO'
-        WHEN codigo::INT BETWEEN 5700 AND 7299 THEN 'RESTAURANTE'
-        WHEN codigo::INT BETWEEN 7300 AND 7999 THEN 'COMERCIO'
-        WHEN codigo::INT BETWEEN 8000 AND 8999 THEN 'SAUDE'
-        ELSE 'GOVERNO'
+        WHEN codigo::INT BETWEEN 0    AND 1499 THEN 'AGRICOLA'::enum_estabelecimento
+        WHEN codigo::INT BETWEEN 1500 AND 2999 THEN 'CONSTRUCAO'::enum_estabelecimento
+        WHEN codigo::INT BETWEEN 3000 AND 3999 THEN 'VIAGEM'::enum_estabelecimento
+        WHEN codigo::INT BETWEEN 4000 AND 4799 THEN 'TRANSPORTE'::enum_estabelecimento
+        WHEN codigo::INT BETWEEN 4800 AND 4999 THEN 'UTILIDADE'::enum_estabelecimento
+        WHEN codigo::INT BETWEEN 5000 AND 5699 THEN 'COMERCIO'::enum_estabelecimento
+        WHEN codigo::INT BETWEEN 5700 AND 7299 THEN 'RESTAURANTE'::enum_estabelecimento
+        WHEN codigo::INT BETWEEN 7300 AND 7999 THEN 'COMERCIO'::enum_estabelecimento
+        WHEN codigo::INT BETWEEN 8000 AND 8999 THEN 'SAUDE'::enum_estabelecimento
+        ELSE 'GOVERNO'::enum_estabelecimento
     END;
 $$;
 
 CREATE TABLE mcc (
-    mcc_id    SERIAL       PRIMARY KEY,
-    codigo    VARCHAR(4)   NOT NULL UNIQUE,
-    categoria TEXT         NOT NULL GENERATED ALWAYS AS (fn_mcc_categoria(codigo)) STORED,
-    descricao VARCHAR(100) NOT NULL
+    mcc_id    SERIAL                 PRIMARY KEY,
+    codigo    VARCHAR(4)             NOT NULL UNIQUE CHECK (codigo ~ '^[0-9]{4}$'),
+    categoria enum_estabelecimento  NOT NULL GENERATED ALWAYS AS (fn_mcc_categoria(codigo)) STORED,
+    descricao VARCHAR(100)           NOT NULL
 );
 
 -- ============================================================
@@ -204,8 +205,8 @@ CREATE TABLE estabelecimento (
 CREATE TABLE campanha_cashback (
     campanha_id  SERIAL               PRIMARY KEY,
     nome         VARCHAR(150)         NOT NULL,
-    cashback_pct NUMERIC(5,2)         NOT NULL,
-    bonus_limite NUMERIC(10,2)        NOT NULL DEFAULT 0,
+    cashback_pct NUMERIC(5,2)         NOT NULL CHECK (cashback_pct >= 0),
+    bonus_limite NUMERIC(10,2)        NOT NULL DEFAULT 0 CHECK (bonus_limite >= 0),
     data_inicio  DATE                 NOT NULL,
     data_fim     DATE                 NOT NULL,
     status       enum_status_campanha NOT NULL DEFAULT 'ATIVA',
@@ -231,8 +232,8 @@ CREATE TABLE transacao (
     estabelecimento_id INT                   NOT NULL REFERENCES estabelecimento(estabelecimento_id),
     campanha_id        INT                   REFERENCES campanha_cashback(campanha_id),
     tipo               enum_tipo_transacao   NOT NULL,
-    valor              NUMERIC(10,2)         NOT NULL,
-    installments       INT                   NOT NULL DEFAULT 1,
+    valor              NUMERIC(10,2)         NOT NULL CHECK (valor > 0),
+    installments       INT                   NOT NULL DEFAULT 1 CHECK (installments >= 1),
     status             enum_status_transacao NOT NULL DEFAULT 'PENDENTE',
     created_at         TIMESTAMP             NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
@@ -243,8 +244,8 @@ CREATE TABLE transacao (
 CREATE TABLE cashback (
     cashback_id    SERIAL               PRIMARY KEY,
     transacao_id   INT                  NOT NULL REFERENCES transacao(transacao_id),
-    valor          NUMERIC(10,2)        NOT NULL,
-    pct_aplicada   NUMERIC(5,2)         NOT NULL,
+    valor          NUMERIC(10,2)        NOT NULL CHECK (valor >= 0),
+    pct_aplicada   NUMERIC(5,2)         NOT NULL CHECK (pct_aplicada >= 0),
     status         enum_status_cashback NOT NULL DEFAULT 'PENDENTE',
     data_liberacao TIMESTAMP,
     created_at     TIMESTAMP            NOT NULL DEFAULT CURRENT_TIMESTAMP
@@ -286,3 +287,33 @@ CREATE TABLE log_global (
     alterado_por TEXT              NOT NULL DEFAULT CURRENT_USER,
     created_at   TIMESTAMP         NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
+
+
+
+-- ============================================================
+-- INDEXES
+-- ============================================================
+
+CREATE INDEX idx_cliente_status
+ON cliente(status);
+
+CREATE INDEX idx_cartao_cliente
+ON cartao(client_id);
+
+CREATE INDEX idx_cartao_status
+ON cartao(status);
+
+CREATE INDEX idx_transacao_card
+ON transacao(card_id);
+
+CREATE INDEX idx_transacao_status
+ON transacao(status);
+
+CREATE INDEX idx_cashback_status
+ON cashback(status);
+
+CREATE INDEX idx_campanha_periodo
+ON campanha_cashback(data_inicio, data_fim);
+
+CREATE INDEX idx_estabelecimento_mcc
+ON estabelecimento(mcc_id);
