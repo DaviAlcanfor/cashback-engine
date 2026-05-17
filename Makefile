@@ -1,7 +1,7 @@
 include .env
 export
 
-.PHONY: install schema seed run reseed simulate
+.PHONY: install schema seed run reseed simulate script
 
 install:
 	pip install -r dataload/requirements.txt
@@ -12,6 +12,9 @@ schema:
 	psql $(DB_URI) -f sql/triggers.sql
 	psql $(DB_URI) -f sql/procedures.sql
 	psql $(DB_URI) -f sql/views.sql
+
+script:
+	psql $(DB_URI) -f script.sql
 
 seed:
 	python dataload/dataload.py
