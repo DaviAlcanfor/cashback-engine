@@ -1,0 +1,221 @@
+-- ============================================================
+-- TRIGGER VALIDAR TRANSAÇÃO
+-- ============================================================
+
+CREATE OR REPLACE FUNCTION tr_validar_transacao()
+RETURNS TRIGGER
+LANGUAGE plpgsql
+AS $$
+BEGIN
+    -- força status baseado na validação
+    IF fn_validar_cartao(NEW.card_id, NEW.valor) THEN
+        NEW.status := 'APROVADA';
+    ELSE
+        NEW.status := 'RECUSADA';
+    END IF;
+
+    RETURN NEW;
+
+END;
+$$;
+
+CREATE TRIGGER trg_validar_transacao
+BEFORE INSERT
+ON transacao
+FOR EACH ROW
+EXECUTE FUNCTION tr_validar_transacao();
+
+-- ============================================================
+-- TRIGGER PROCESSAR TRANSAÇÃO
+-- ============================================================
+
+CREATE OR REPLACE FUNCTION tr_processar_transacao()
+RETURNS TRIGGER
+LANGUAGE plpgsql
+AS $$
+DECLARE
+    v_cashback_valor NUMERIC(10,2);
+    v_cashback_pct   NUMERIC(5,2);
+    v_campanha_id    INT;
+BEGIN
+
+    -- processa apenas aprovadas
+    IF NEW.status <> 'APROVADA' THEN
+        RETURN NEW;
+    END IF;
+
+    -- calcula cashback
+    SELECT
+        cashback_valor,
+        cashback_pct,
+        campanha_id
+    INTO
+        v_cashback_valor,
+        v_cashback_pct,
+        v_campanha_id
+    FROM fn_calcular_cashback(
+        NEW.card_id,
+        NEW.estabelecimento_id,
+        NEW.valor
+    );
+
+    -- atualiza campanha da transação
+    UPDATE transacao
+    SET campanha_id = v_campanha_id
+    WHERE transacao_id = NEW.transacao_id;
+
+    -- atualiza valores do cartão
+    UPDATE cartao
+    SET
+        limite_usado = limite_usado + NEW.valor,
+        valor_fatura = valor_fatura + NEW.valor
+    WHERE card_id = NEW.card_id;
+
+    -- cria cashback somente se houver valor
+    IF v_cashback_valor > 0 THEN
+        INSERT INTO cashback (transacao_id, valor, pct_aplicada, status)
+        VALUES (NEW.transacao_id, v_cashback_valor, v_cashback_pct,'PENDENTE');
+    END IF;
+
+    RETURN NEW;
+END;
+$$;
+
+CREATE TRIGGER trg_processar_transacao
+AFTER INSERT
+ON transacao
+FOR EACH ROW
+EXECUTE FUNCTION tr_processar_transacao();
+
+-- ============================================================
+-- TRIGGER LIBERAR CASHBACK
+-- ============================================================
+
+CREATE OR REPLACE FUNCTION tr_liberar_cashback()
+RETURNS TRIGGER
+LANGUAGE plpgsql
+AS $$
+BEGIN
+
+    -- libera cashback quando transação aprova
+    IF OLD.status <> 'APROVADA' AND 
+	   NEW.status = 'APROVADA'
+    THEN
+        UPDATE cashback
+        SET status = 'LIBERADO',
+            data_liberacao = CURRENT_TIMESTAMP
+        WHERE transacao_id = NEW.transacao_id;
+    END IF;
+
+    RETURN NEW;
+END;
+$$;
+
+CREATE TRIGGER trg_liberar_cashback
+AFTER UPDATE
+ON transacao
+FOR EACH ROW
+WHEN (OLD.status IS DISTINCT FROM NEW.status)
+EXECUTE FUNCTION tr_liberar_cashback();
+
+-- ============================================================
+-- TRIGGER LOG TRANSAÇÃO
+-- ============================================================
+
+CREATE OR REPLACE FUNCTION tr_log_transacao()
+RETURNS TRIGGER
+LANGUAGE plpgsql
+AS $$
+BEGIN
+
+    INSERT INTO log_transacao (transacao_id,status_antes,status_depois)
+    VALUES ( NEW.transacao_id, OLD.status, NEW.status  );
+
+    RETURN NEW;
+END;
+$$;
+
+CREATE TRIGGER trg_log_transacao
+AFTER UPDATE
+ON transacao
+FOR EACH ROW
+WHEN (OLD.status IS DISTINCT FROM NEW.status)
+EXECUTE FUNCTION tr_log_transacao();
+
+-- ============================================================
+-- TRIGGER LOG CASHBACK
+-- ============================================================
+
+CREATE OR REPLACE FUNCTION tr_log_cashback()
+RETURNS TRIGGER
+LANGUAGE plpgsql
+AS $$
+BEGIN
+
+    INSERT INTO log_cashback (cashback_id, status_antes, status_depois )
+    VALUES ( NEW.cashback_id, OLD.status, NEW.status );
+
+    RETURN NEW;
+END;
+$$;
+
+CREATE TRIGGER trg_log_cashback
+AFTER UPDATE
+ON cashback
+FOR EACH ROW
+WHEN (OLD.status IS DISTINCT FROM NEW.status)
+EXECUTE FUNCTION tr_log_cashback();
+
+-- ============================================================
+-- TRIGGER LOG GLOBAL
+-- ============================================================
+
+CREATE OR REPLACE FUNCTION tr_log_global()
+RETURNS TRIGGER
+LANGUAGE plpgsql
+AS $$
+BEGIN
+
+    -- INSERT
+    IF TG_OP = 'INSERT' THEN
+
+        INSERT INTO log_global ( tabela, operacao,  dado_novo )
+        VALUES (TG_TABLE_NAME,  'INSERT', to_jsonb(NEW));
+
+        RETURN NEW;
+    END IF;
+
+    -- UPDATE
+    IF TG_OP = 'UPDATE' THEN
+
+        INSERT INTO log_global (tabela, operacao, dado_antigo, dado_novo)
+        VALUES (TG_TABLE_NAME, 'UPDATE', to_jsonb(OLD), to_jsonb(NEW));
+
+        RETURN NEW;
+
+    END IF;
+
+    -- DELETE
+    IF TG_OP = 'DELETE' THEN
+
+        INSERT INTO log_global (tabela,  operacao,  dado_antigo)
+        VALUES (TG_TABLE_NAME,'DELETE', to_jsonb(OLD) );
+
+        RETURN OLD;
+    END IF;
+
+    RETURN NULL;
+END;
+$$;
+
+CREATE TRIGGER trg_log_global_transacao
+AFTER INSERT OR UPDATE OR DELETE
+ON transacao
+FOR EACH ROW
+EXECUTE FUNCTION tr_log_global();
+
+CREATE TRIGGER trg_log_global_cashback
+AFTER INSERT OR UPDATE OR DELETE
+ON cashback
+FOR EACH ROW
+EXECUTE FUNCTION tr_log_global();
