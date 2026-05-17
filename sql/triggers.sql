@@ -46,17 +46,17 @@ BEGIN
     );
 
     -- aprovada
-    IF v_valido THEN
-        NEW.status := 'APROVADA';
-    ELSE
-        NEW.status := 'RECUSADA';
-
-        -- log no terminal postgres
-        RAISE NOTICE
-            'TRANSACAO RECUSADA | CARD_ID: % | MOTIVO: %',
-            NEW.card_id,
-            v_motivo;
-    END IF;
+	IF v_valido THEN
+	    NEW.status := 'APROVADA';
+	ELSE
+	    NEW.status        := 'RECUSADA';
+	    NEW.motivo_recusa := v_motivo;
+	
+	    RAISE NOTICE
+	        'TRANSACAO RECUSADA | CARD_ID: % | MOTIVO: %',
+	        NEW.card_id,
+	        v_motivo;
+	END IF;
 
     RETURN NEW;
 END;
