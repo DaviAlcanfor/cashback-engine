@@ -104,7 +104,7 @@ $$;
 
 CREATE OR REPLACE FUNCTION fn_buscar_campanha(
     p_mcc_id INT,
-    p_data TIMESTAMP
+    p_data TIMESTAMPTZ
 )
 RETURNS INT
 LANGUAGE plpgsql
@@ -112,21 +112,18 @@ AS $$
 DECLARE
     v_campanha_id INT;
 BEGIN
-
     SELECT c.campanha_id
     INTO v_campanha_id
     FROM campanha_cashback c
-    JOIN campanha_mcc cm
-        ON cm.campanha_id = c.campanha_id
-    WHERE
-        cm.mcc_id = p_mcc_id
-        AND c.status = 'ATIVA'
-        AND p_data::DATE BETWEEN c.data_inicio AND c.data_fim
+    JOIN campanha_mcc cm ON cm.campanha_id = c.campanha_id
+    WHERE 1=1
+      AND cm.mcc_id = p_mcc_id
+      AND c.status = 'ATIVA'
+      AND p_data::DATE BETWEEN c.data_inicio AND c.data_fim
     ORDER BY c.cashback_pct DESC
     LIMIT 1;
 
     RETURN v_campanha_id;
-
 END;
 $$;
 
