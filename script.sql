@@ -1,38 +1,63 @@
 -- ============================================================
 -- RESET
 -- ============================================================
-DROP TABLE IF EXISTS log_global          CASCADE;
-DROP TABLE IF EXISTS log_cashback        CASCADE;
-DROP TABLE IF EXISTS log_transacao       CASCADE;
-DROP TABLE IF EXISTS cashback            CASCADE;
-DROP TABLE IF EXISTS transacao           CASCADE;
-DROP TABLE IF EXISTS campanha_mcc        CASCADE;
-DROP TABLE IF EXISTS campanha_cashback   CASCADE;
-DROP TABLE IF EXISTS estabelecimento     CASCADE;
-DROP TABLE IF EXISTS mcc                 CASCADE;
-DROP TABLE IF EXISTS cartao              CASCADE;
-DROP TABLE IF EXISTS bin                 CASCADE;
-DROP TABLE IF EXISTS bandeira            CASCADE;
-DROP TABLE IF EXISTS limite_tipo         CASCADE;
-DROP TABLE IF EXISTS variante            CASCADE;
-DROP TABLE IF EXISTS cliente             CASCADE;
-DROP TABLE IF EXISTS endereco            CASCADE;
 
-DROP FUNCTION IF EXISTS fn_mcc_categoria(VARCHAR) CASCADE;
+DROP VIEW IF EXISTS vw_painel_cliente  CASCADE;
 
-DROP TYPE IF EXISTS enum_estabelecimento  CASCADE;
-DROP TYPE IF EXISTS enum_operacao_log     CASCADE;
-DROP TYPE IF EXISTS enum_status_cashback  CASCADE;
-DROP TYPE IF EXISTS enum_status_campanha  CASCADE;
-DROP TYPE IF EXISTS enum_status_transacao CASCADE;
-DROP TYPE IF EXISTS enum_tipo_transacao   CASCADE;
-DROP TYPE IF EXISTS enum_status_cartao    CASCADE;
-DROP TYPE IF EXISTS enum_status_estab     CASCADE;
-DROP TYPE IF EXISTS enum_tamanho          CASCADE;
-DROP TYPE IF EXISTS enum_variante         CASCADE;
-DROP TYPE IF EXISTS enum_status_cliente   CASCADE;
-DROP TYPE IF EXISTS enum_profile          CASCADE;
-DROP TYPE IF EXISTS enum_motivo_recusa    CASCADE;
+DROP TRIGGER   IF EXISTS trg_validar_transacao        ON transacao;
+DROP TRIGGER   IF EXISTS trg_processar_transacao      ON transacao;
+DROP TRIGGER   IF EXISTS trg_liberar_cashback         ON transacao;
+DROP TRIGGER   IF EXISTS trg_log_transacao            ON transacao;
+DROP TRIGGER   IF EXISTS trg_log_cashback             ON cashback;
+DROP TRIGGER   IF EXISTS trg_log_global_transacao     ON transacao;
+DROP TRIGGER   IF EXISTS trg_log_global_cashback      ON cashback;
+
+DROP PROCEDURE IF EXISTS pr_registrar_transacao(INT,INT,enum_tipo_transacao,NUMERIC,INT) CASCADE;
+DROP PROCEDURE IF EXISTS pr_expirar_cashbacks()                                          CASCADE;
+
+DROP FUNCTION  IF EXISTS tr_validar_transacao()                     CASCADE;
+DROP FUNCTION  IF EXISTS tr_processar_transacao()                   CASCADE;
+DROP FUNCTION  IF EXISTS tr_liberar_cashback()                      CASCADE;
+DROP FUNCTION  IF EXISTS tr_log_transacao()                         CASCADE;
+DROP FUNCTION  IF EXISTS tr_log_cashback()                          CASCADE;
+DROP FUNCTION  IF EXISTS tr_log_global()                            CASCADE;
+DROP FUNCTION  IF EXISTS fn_buscar_pct_vigente(INT, INT, TIMESTAMP) CASCADE;
+DROP FUNCTION  IF EXISTS fn_validar_cartao(INT, NUMERIC)            CASCADE;
+DROP FUNCTION  IF EXISTS fn_buscar_campanha(INT, TIMESTAMPTZ)       CASCADE;
+DROP FUNCTION  IF EXISTS fn_calcular_cashback(INT, INT, NUMERIC)    CASCADE;
+DROP FUNCTION  IF EXISTS fn_mcc_categoria(VARCHAR)                  CASCADE;
+DROP FUNCTION  IF EXISTS fn_age_group(DATE)                         CASCADE;
+
+DROP TABLE     IF EXISTS log_global        CASCADE;
+DROP TABLE     IF EXISTS log_cashback      CASCADE;
+DROP TABLE     IF EXISTS log_transacao     CASCADE;
+DROP TABLE     IF EXISTS cashback          CASCADE;
+DROP TABLE     IF EXISTS transacao         CASCADE;
+DROP TABLE     IF EXISTS campanha_mcc      CASCADE;
+DROP TABLE     IF EXISTS campanha_cashback CASCADE;
+DROP TABLE     IF EXISTS estabelecimento   CASCADE;
+DROP TABLE     IF EXISTS mcc               CASCADE;
+DROP TABLE     IF EXISTS cartao            CASCADE;
+DROP TABLE     IF EXISTS bin               CASCADE;
+DROP TABLE     IF EXISTS bandeira          CASCADE;
+DROP TABLE     IF EXISTS limite_tipo       CASCADE;
+DROP TABLE     IF EXISTS variante          CASCADE;
+DROP TABLE     IF EXISTS cliente           CASCADE;
+DROP TABLE     IF EXISTS endereco          CASCADE;
+
+DROP TYPE      IF EXISTS enum_estabelecimento   CASCADE;
+DROP TYPE      IF EXISTS enum_operacao_log      CASCADE;
+DROP TYPE      IF EXISTS enum_status_cashback   CASCADE;
+DROP TYPE      IF EXISTS enum_status_campanha   CASCADE;
+DROP TYPE      IF EXISTS enum_status_transacao  CASCADE;
+DROP TYPE      IF EXISTS enum_tipo_transacao    CASCADE;
+DROP TYPE      IF EXISTS enum_status_cartao     CASCADE;
+DROP TYPE      IF EXISTS enum_status_estab      CASCADE;
+DROP TYPE      IF EXISTS enum_tamanho           CASCADE;
+DROP TYPE      IF EXISTS enum_variante          CASCADE;
+DROP TYPE      IF EXISTS enum_status_cliente    CASCADE;
+DROP TYPE      IF EXISTS enum_profile           CASCADE;
+DROP TYPE      IF EXISTS enum_motivo_recusa     CASCADE;
 
 -- ============================================================
 -- ENUMS
@@ -320,11 +345,10 @@ ON campanha_cashback(data_inicio, data_fim);
 
 CREATE INDEX idx_estabelecimento_mcc
 ON estabelecimento(mcc_id);
-DROP FUNCTION IF EXISTS fn_buscar_pct_vigente(INT, INT, TIMESTAMP) CASCADE;
-DROP FUNCTION IF EXISTS fn_validar_cartao(INT, NUMERIC) CASCADE;
-DROP FUNCTION IF EXISTS fn_buscar_campanha(INT, TIMESTAMP) CASCADE;
-DROP FUNCTION IF EXISTS fn_calcular_cashback(INT, INT, NUMERIC) CASCADE;
 
+-- ============================================================
+-- FUNCTIONS
+-- ============================================================
 
 CREATE OR REPLACE FUNCTION fn_buscar_pct_vigente(
     p_card_id      INT,
@@ -504,28 +528,7 @@ END;
 $$;
 
 
--- ============================================================
--- DROP TRIGGERS
--- ============================================================
 
-DROP TRIGGER IF EXISTS trg_validar_transacao       ON transacao;
-DROP TRIGGER IF EXISTS trg_processar_transacao     ON transacao;
-DROP TRIGGER IF EXISTS trg_liberar_cashback        ON transacao;
-DROP TRIGGER IF EXISTS trg_log_transacao           ON transacao;
-DROP TRIGGER IF EXISTS trg_log_cashback            ON cashback;
-DROP TRIGGER IF EXISTS trg_log_global_transacao    ON transacao;
-DROP TRIGGER IF EXISTS trg_log_global_cashback     ON cashback;
-
--- ============================================================
--- DROP TRIGGER FUNCTIONS
--- ============================================================
-
-DROP FUNCTION IF EXISTS tr_validar_transacao() CASCADE;
-DROP FUNCTION IF EXISTS tr_processar_transacao() CASCADE;
-DROP FUNCTION IF EXISTS tr_liberar_cashback() CASCADE;
-DROP FUNCTION IF EXISTS tr_log_transacao() CASCADE;
-DROP FUNCTION IF EXISTS tr_log_cashback() CASCADE;
-DROP FUNCTION IF EXISTS tr_log_global() CASCADE;
 
 -- ============================================================
 -- TRIGGER VALIDAR TRANSAÇÃO
