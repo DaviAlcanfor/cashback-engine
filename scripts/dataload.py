@@ -247,13 +247,14 @@ def seed_cartoes(cur, client_ids: list[int], bin_ids: list[int], variante_ids: l
             limite_usado,
             round(limite_usado * random.uniform(0.5, 1.0), 2),
             random.choice([True, False]),
+            rand_date(date.today(), date(2030, 12, 31)),
             str(random.randint(1000, 9999)),
             random.choice(STATUS_CARTAO),
         ))
 
     ids = batch_insert(cur, "cartao", [
         "client_id", "bin_id", "variante_id", "limite_tipo_id",
-        "limite_valor", "limite_usado", "valor_fatura", "fatura_paga", "last4", "status"
+        "limite_valor", "limite_usado", "valor_fatura", "fatura_paga", "validade", "last4", "status"
     ], rows)
     logger.info(f"cartoes inseridos: {len(ids)}")
     return ids

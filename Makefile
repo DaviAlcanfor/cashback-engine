@@ -4,7 +4,7 @@ export
 .PHONY: install schema seed run reseed simulate script
 
 install:
-	pip install -r dataload/requirements.txt
+	pip install -r scripts/requirements.txt
 
 schema:
 	psql $(DB_URI) -f sql/schema.sql
@@ -17,10 +17,10 @@ script:
 	psql $(DB_URI) -f script.sql
 
 seed:
-	python dataload/dataload.py
+	python scripts/dataload.py
 
 simulate:
-	python scripts/simulator.py
+	python scripts/simulador.py
 
 run: install schema seed
 
