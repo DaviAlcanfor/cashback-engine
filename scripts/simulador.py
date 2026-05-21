@@ -21,12 +21,14 @@ def get_connection():
 
 def buscar_dados_aleatorios(cur):
     cur.execute("""
-        SELECT c.card_id, cl.nome, c.last4, v.nome AS variante
+        SELECT c.card_id, cl.nome, c.last4, v.nome AS variante,
+               (c.limite_valor - c.limite_usado) AS limite_disponivel
         FROM cartao c
         JOIN cliente cl ON cl.client_id = c.client_id
         JOIN variante v ON v.variante_id = c.variante_id
         WHERE c.status = 'ATIVO'
           AND cl.status = 'ATIVO'
+          AND (c.limite_valor - c.limite_usado) > 10 
         ORDER BY RANDOM()
         LIMIT 1
     """)
@@ -115,12 +117,16 @@ def simular():
             card, estab = buscar_dados_aleatorios(cur)
 
             if not card or not estab:
-                console.print("[red]Sem dados no banco.[/red]")
-                break
+                console.print("[yellow]Sem cartões com limite disponível, aguardando...[/yellow]")
+                time.sleep(1)
+                continue
 
-            card_id, nome, last4, variante = card
+            card_id, nome, last4, variante, limite_disponivel = card
             estab_id = estab[0]
-            valor = round(random.uniform(10, 500), 2)  # valor menor = menos recusa por limite
+            if random.random() < 0.2:
+                valor = round(random.uniform(float(limite_disponivel), float(limite_disponivel) * 1.5), 2)
+            else:
+                valor = round(random.uniform(10, min(500, float(limite_disponivel))), 2)
 
             registrar_transacao(cur, card_id, estab_id, valor)
             conn.commit()
