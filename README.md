@@ -155,11 +155,10 @@ cashback-engine/
         triggers.sql
         procedures.sql
         views.sql
-    dataload/
-        dataload.py
-        requirements.txt
     scripts/
         simulador.py
+        dataload.py
+        requirements.txt
     script.sql
     .env.example
     Makefile
